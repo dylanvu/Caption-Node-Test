@@ -2,7 +2,7 @@ import { SerialPort, ReadlineParser } from "serialport";
 import Axios from "axios";
 
 let soundData: number[] = [];
-const soundEndpoint = "https://53d8-169-234-95-134.ngrok.io/caption"
+const domain = "https://53d8-169-234-95-134.ngrok.io/caption"
 
 let stop = false;
 let isUploading = false;
@@ -39,15 +39,15 @@ parser.on("data", (data) => {
             const dataNum = parseInt(trimmed);
             if (!isNaN(dataNum)) {
                 soundData.push(data);
-                console.log(soundData.length);
+                console.log(data);
             } else {
                 console.log(trimmed, "is not a number");
             }
 
         }
-        if (soundData.length > 30000) {
-            soundData = [];
-        }
+        // if (soundData.length > 30000) {
+        //     soundData = [];
+        // }
     } else {
         if (!isUploading) {
             // go upload
@@ -57,7 +57,7 @@ parser.on("data", (data) => {
             });
 
             // intArray = [1, 2, 3];
-            Axios.post(soundEndpoint, { "sound:": intArray })
+            Axios.post(domain + "/caption", { "sound:": intArray })
                 .then((res) => {
                     const data = res.data;
                     if (typeof data !== "string") {
@@ -81,6 +81,35 @@ parser.on("data", (data) => {
 
 });
 
+setTimeout(() => {
+    // go upload
+    isUploading = true;
+    let intArray = soundData.map((data: any) => {
+        return parseInt(data);
+    });
+
+    // intArray = [1, 2, 3];
+    Axios.post(domain + "/caption", { "sound:": intArray })
+        .then((res) => {
+            const data = res.data;
+            if (typeof data !== "string") {
+                console.error("Did not get a string: ", data);
+            } else {
+                console.log(data);
+                port.write(data);
+            }
+        })
+        .catch((e) => {
+            console.log("Axios error");
+            console.error(e);
+        }).finally(() => {
+            soundData = [];
+            stop = false;
+            isUploading = false;
+            process.exit();
+        });
+}, 5000)
+
 // Keystroke listening
 let stdin = process.stdin;
 
@@ -100,5 +129,15 @@ stdin.on('data', (keyBuf) => {
     } else if (key === '\u0003') {
         // ctrl + c
         process.exit();
+    } else if (key === "w") {
+        // make a get request for a text in the backend and write it
+        Axios.get(domain + "/wav").then((res) => {
+            console.log(res.data);
+            const data = res.data;
+            // write to serial
+            port.write(data);
+        }).finally(() => {
+            process.exit();
+        })
     }
 });
